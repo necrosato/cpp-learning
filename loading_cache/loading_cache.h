@@ -11,6 +11,8 @@
 
 #include <functional>
 #include <map>
+#include <memory>
+#include <utility>
 
 namespace nsato {
 
@@ -39,6 +41,8 @@ class LoadingCache {
 
   static std::shared_ptr<LoadingCache<K, V>> CreateKeepNever();
 
+  static std::shared_ptr<LoadingCache<K, V>> CreateLeastRecentlyUsed(int n);
+
   void Set(const K& key, std::function<V()> loader);
 
   const V& Load(const K& key);
@@ -58,7 +62,7 @@ class LoadingCache<K, V>::EvictionPolicy {
   EvictionPolicy() = default;
   virtual ~EvictionPolicy() = default;
   EvictionPolicy(const EvictionPolicy& other) = delete;
-  EvictionPolicy& operator&(const EvictionPolicy& other) = delete;
+  EvictionPolicy& operator=(const EvictionPolicy& other) = delete;
 
   /**
    * This will possibly evict a value from a map to make space to load new value for key according to policy.
@@ -76,7 +80,7 @@ class KeepForeverEvictionPolicy : public LoadingCache<K, V>::EvictionPolicy {
   KeepForeverEvictionPolicy() = default;
   virtual ~KeepForeverEvictionPolicy() = default;
   KeepForeverEvictionPolicy(const KeepForeverEvictionPolicy& other) = delete;
-  KeepForeverEvictionPolicy& operator&(const KeepForeverEvictionPolicy& other) = delete;
+  KeepForeverEvictionPolicy& operator=(const KeepForeverEvictionPolicy& other) = delete;
 
   void Evict(const K& key, std::map<K, V>* data) override {
     return;
@@ -92,12 +96,54 @@ class KeepNeverEvictionPolicy : public LoadingCache<K, V>::EvictionPolicy {
   KeepNeverEvictionPolicy() = default;
   virtual ~KeepNeverEvictionPolicy() = default;
   KeepNeverEvictionPolicy(const KeepNeverEvictionPolicy& other) = delete;
-  KeepNeverEvictionPolicy& operator&(const KeepNeverEvictionPolicy& other) = delete;
+  KeepNeverEvictionPolicy& operator=(const KeepNeverEvictionPolicy& other) = delete;
 
   void Evict(const K& key, std::map<K, V>* data) override {
     data->clear();
-    return;
   }
+};
+
+/**
+ * Eviction policy which keeps the n least recently used values
+ */
+template <class K, class V>
+class LeastRecentlyUsedEvictionPolicy : public LoadingCache<K, V>::EvictionPolicy {
+  public:
+   LeastRecentlyUsedEvictionPolicy() = delete;
+   virtual ~LeastRecentlyUsedEvictionPolicy() = default;
+   LeastRecentlyUsedEvictionPolicy(const LeastRecentlyUsedEvictionPolicy& other) = delete;
+   LeastRecentlyUsedEvictionPolicy& operator=(const LeastRecentlyUsedEvictionPolicy& other) = delete;
+
+   /**
+    * n: max number of elements to keep cached at any given time
+    */
+   LeastRecentlyUsedEvictionPolicy(int n) : n_(n) {}
+
+   void Evict(const K& key, std::map<K, V>* data) override {
+     // if already loaded, no need to evict. Just remove old counter_to_key_ entry
+     if (key_to_counter_.find(key) != key_to_counter_.end()) {
+       counter_to_key_.erase(key_to_counter_.at(key));
+       // Else if not loaded but cache full, need to evict from both maps
+     } else if (key_to_counter_.size() == n_) {
+       K to_evict = counter_to_key_.begin()->second;
+       data->erase(to_evict);
+       key_to_counter_.erase(to_evict);
+       counter_to_key_.erase(counter_to_key_.begin());
+     }
+     // Else don't need to evict
+     key_to_counter_[key] = counter_;
+     counter_to_key_[counter_] = key;
+     assert(key_to_counter_.size() == counter_to_key_.size());
+     assert(key_to_counter_.size() <= n_);
+     ++counter_;
+   }
+
+ private:
+  int n_;
+  // Incremented each time evict is called
+  int counter_;
+  std::map<K, int> key_to_counter_;
+  std::map<int, K> counter_to_key_;
 };
 
 //////////////////////////////
@@ -126,6 +172,11 @@ std::shared_ptr<LoadingCache<K, V>> LoadingCache<K, V>::CreateKeepForever() {
 template <class K, class V>
 std::shared_ptr<LoadingCache<K, V>> LoadingCache<K, V>::CreateKeepNever() {
   return std::make_unique<LoadingCache<K, V>>(std::make_unique<KeepNeverEvictionPolicy<K, V>>());
+}
+
+template <class K, class V>
+std::shared_ptr<LoadingCache<K, V>> LoadingCache<K, V>::CreateLeastRecentlyUsed(int n) {
+  return std::make_unique<LoadingCache<K, V>>(std::make_unique<LeastRecentlyUsedEvictionPolicy<K, V>>(n));
 }
 
 }  // namespace nsato

@@ -60,9 +60,46 @@ void LoadingCacheKeepNeverTest() {
   assert(loaded == 2);
 }
 
+void LoadingCacheLRUTest() {
+  auto cache = nsato::LoadingCache<int, std::unique_ptr<TestData>>::CreateLeastRecentlyUsed(2);
+  int loaded = 0;
+  cache->Set(1, [&]() {
+        ++loaded;
+        return std::make_unique<TestData>("asdf");
+      });
+  cache->Set(2, [&]() {
+        ++loaded;
+        return std::make_unique<TestData>("fdsa");
+      });
+  cache->Set(3, [&]() {
+        ++loaded;
+        return std::make_unique<TestData>("1234");
+      });
+  assert(loaded == 0);
+  assert(cache->Load(1)->data == "asdf");
+  assert(loaded == 1);
+  assert(cache->Load(1)->data == "asdf");
+  assert(loaded == 1);
+  assert(cache->Load(2)->data == "fdsa");
+  assert(loaded == 2);
+  assert(cache->Load(2)->data == "fdsa");
+  assert(loaded == 2);
+  assert(cache->Load(1)->data == "asdf");
+  assert(loaded == 2);
+  assert(cache->Load(3)->data == "1234");
+  assert(loaded == 3);
+  assert(cache->Load(3)->data == "1234");
+  assert(loaded == 3);
+  assert(cache->Load(1)->data == "asdf");
+  assert(loaded == 3);
+  assert(cache->Load(2)->data == "fdsa");
+  assert(loaded == 4);
+}
+
 int main(int argc, char* argv[]) {
   LoadingCacheCopyableDataTest();
   LoadingCacheUniqueDataTest();
   LoadingCacheKeepNeverTest();
+  LoadingCacheLRUTest();
   return 0;
 }
