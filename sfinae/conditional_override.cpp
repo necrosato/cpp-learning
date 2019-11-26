@@ -10,6 +10,7 @@
 #include <type_traits>
 class Base {
  public:
+  static constexpr bool is_sub = false;
   virtual void f() = 0;
 };
 
@@ -19,6 +20,7 @@ class Sub : public Base {
   void f() override { std::cout << "sub impl" << std::endl; }
 };
 
+/*
 template <class T, class U = typename std::enable_if<T::is_sub>::type>
 class MaybeSub : public T {
  public:
@@ -29,8 +31,8 @@ class MaybeSub : public T {
  public:
   void f() override { std::cout << "maybe sub impl" << std::endl; }
 };
+*/
 
-/*
 template <class T, class U = void>
 class MaybeSub : public T {
  public:
@@ -42,7 +44,6 @@ class MaybeSub<T, typename std::enable_if<!T::is_sub>::type> : public MaybeSub<T
  public:
   void f() override { std::cout << "maybe sub impl" << std::endl; }
 };
-*/
 
 int main() {
   MaybeSub<Base> not_sub;
