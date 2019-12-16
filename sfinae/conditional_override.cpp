@@ -20,23 +20,9 @@ class Sub : public Base {
   void f() override { std::cout << "sub impl" << std::endl; }
 };
 
-/*
-template <class T, class U = typename std::enable_if<T::is_sub>::type>
-class MaybeSub : public T {
- public:
-};
-
 template <class T, class U = void>
 class MaybeSub : public T {
  public:
-  void f() override { std::cout << "maybe sub impl" << std::endl; }
-};
-*/
-
-template <class T, class U = void>
-class MaybeSub : public T {
- public:
-  //void f() override { std::cout << "maybe sub impl" << std::endl; }
 };
 
 template <class T>
